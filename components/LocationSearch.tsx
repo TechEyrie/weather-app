@@ -96,8 +96,7 @@ export function LocationSearch({
           if (results.length) setOpen(true);
         }}
         aria-label="Search locations"
-        aria-expanded={open}
-        aria-controls="location-search-list"
+        aria-controls={open ? "location-search-list" : undefined}
         autoComplete="off"
       />
       {searching ? <span className="tool-search-busy" aria-hidden /> : null}
@@ -105,7 +104,12 @@ export function LocationSearch({
         <ul id="location-search-list" className="search-dropdown" role="listbox">
           {results.map((loc) => (
             <li key={loc.id || `${loc.latitude}-${loc.longitude}`}>
-              <button type="button" role="option" onClick={() => pick(loc)}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={false}
+                onClick={() => pick(loc)}
+              >
                 {label(loc)}
               </button>
             </li>
