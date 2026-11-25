@@ -2,7 +2,12 @@ import type { GeoLocation } from "@/lib/open-meteo";
 
 export const FAVORITES_KEY = "aurora-favorites";
 
+function storageAvailable(): boolean {
+  return typeof window !== "undefined" && typeof localStorage !== "undefined";
+}
+
 export function readFavorites(): GeoLocation[] {
+  if (!storageAvailable()) return [];
   try {
     const raw = localStorage.getItem(FAVORITES_KEY);
     if (!raw) return [];
@@ -18,6 +23,7 @@ export function readFavorites(): GeoLocation[] {
 }
 
 export function writeFavorites(favorites: GeoLocation[]): void {
+  if (!storageAvailable()) return;
   try {
     localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
   } catch {

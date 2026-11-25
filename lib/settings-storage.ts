@@ -10,7 +10,12 @@ export const DEFAULT_SETTINGS: AuroraSettings = {
   windUnit: "mph",
 };
 
+function storageAvailable(): boolean {
+  return typeof window !== "undefined" && typeof localStorage !== "undefined";
+}
+
 export function readSettings(): AuroraSettings {
+  if (!storageAvailable()) return DEFAULT_SETTINGS;
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return DEFAULT_SETTINGS;
@@ -25,6 +30,7 @@ export function readSettings(): AuroraSettings {
 }
 
 export function writeSettings(settings: AuroraSettings): void {
+  if (!storageAvailable()) return;
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   } catch {

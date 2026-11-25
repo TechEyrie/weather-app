@@ -22,8 +22,6 @@ import {
 
 import {
 
-  DEFAULT_LOCATION,
-
   buildWeatherBlurb,
 
   dailyMaxToWavePath,

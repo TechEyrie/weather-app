@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  staticPageGenerationTimeout: 120,
   images: {
     remotePatterns: [
       {

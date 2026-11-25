@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import type { User } from "@supabase/supabase-js";
-import type { GeoLocation } from "@/lib/open-meteo";
+import { DEFAULT_LOCATION, type GeoLocation } from "@/lib/open-meteo";
 import { readActiveLocation, saveActiveLocation } from "@/lib/location-storage";
 import {
   addFavorite,
@@ -78,12 +78,12 @@ export function useAuth() {
 }
 
 function LocationProvider({ children }: { children: ReactNode }) {
-  const [activeLocation, setActiveLocationState] = useState<GeoLocation>(() =>
-    readActiveLocation()
-  );
+  const [activeLocation, setActiveLocationState] =
+    useState<GeoLocation>(DEFAULT_LOCATION);
   const [favorites, setFavorites] = useState<GeoLocation[]>([]);
 
   useEffect(() => {
+    setActiveLocationState(readActiveLocation());
     setFavorites(readFavorites());
   }, []);
 
