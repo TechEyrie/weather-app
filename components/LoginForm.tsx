@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import {
+  authErrorMessage,
+  buildAuthCallbackUrl,
+  getClientAuthRedirectOrigin,
+  sanitizeAuthNext,
+} from "@/lib/auth-redirect";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
@@ -37,12 +44,27 @@ const copy = {
 } as const;
 
 export function LoginForm({ variant = "login" }: LoginFormProps) {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const configured = isSupabaseConfigured();
   const text = copy[variant];
+
+  const callbackError = useMemo(
+    () =>
+      authErrorMessage(
+        searchParams.get("error"),
+        searchParams.get("reason")
+      ),
+    [searchParams]
+  );
+
+  const afterAuthPath = useMemo(
+    () => sanitizeAuthNext(searchParams.get("next")),
+    [searchParams]
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -53,10 +75,11 @@ export function LoginForm({ variant = "login" }: LoginFormProps) {
     setSubmitting(true);
     setMessage(null);
     setSuccess(false);
+    const origin = getClientAuthRedirectOrigin();
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/account`,
+        emailRedirectTo: buildAuthCallbackUrl(origin, afterAuthPath),
       },
     });
     setSubmitting(false);
@@ -92,6 +115,12 @@ export function LoginForm({ variant = "login" }: LoginFormProps) {
         {text.title}
       </h1>
       <p className="page-lead auth-lead">{text.lead}</p>
+
+      {callbackError ? (
+        <p className="auth-feedback auth-feedback--err" role="alert">
+          {callbackError}
+        </p>
+      ) : null}
 
       <form className="auth-form" onSubmit={(e) => void handleSubmit(e)}>
         <label className="auth-label" htmlFor={text.inputId}>
