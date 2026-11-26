@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useLocation } from "@/components/providers/AppProviders";
+import { useAuth, useLocation } from "@/components/providers/AppProviders";
 import type { GeoLocation } from "@/lib/open-meteo";
 
 function locationLabel(loc: GeoLocation): string {
@@ -16,13 +16,24 @@ export function LocationsPage() {
     setActiveLocation,
     removeFavorite,
     moveFavorite,
+    syncError,
+    dataReady,
   } = useLocation();
+  const { user } = useAuth();
 
   return (
     <section className="page-panel locations-page" aria-labelledby="locations-title">
       <h1 id="locations-title" className="page-title">
         Saved locations
       </h1>
+      {user ? (
+        <p className="page-lead">
+          {dataReady
+            ? "Saved to your account (Supabase)."
+            : "Loading your saved cities from the cloud…"}
+        </p>
+      ) : null}
+      {syncError ? <p className="explore-error">{syncError}</p> : null}
       {favorites.length === 0 ? (
         <p className="page-lead">
           No favorites yet. Use the <strong>+</strong> button in the header or{" "}

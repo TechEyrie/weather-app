@@ -611,6 +611,42 @@ button.tool {
   inset: calc(10 * var(--u));
 }
 
+.avatar-wrap--signed-in {
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--glass-line);
+  background: color-mix(in srgb, var(--tool-fill) 70%, transparent);
+}
+
+.avatar-wrap--signed-in .avatar-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-wrap--signed-in .avatar-initials {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: calc(14 * var(--u));
+  font-weight: 700;
+  letter-spacing: calc(-0.35 * var(--u));
+  text-transform: uppercase;
+  color: var(--ink);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--ink) 22%, transparent),
+    color-mix(in srgb, var(--tool-fill-hover) 95%, transparent)
+  );
+  user-select: none;
+}
+
+.avatar-wrap--signed-in:hover {
+  filter: brightness(1.06);
+}
+
 .hero {
   left: calc(126 * var(--u));
   top: calc(136 * var(--u));
@@ -680,7 +716,9 @@ h1 {
 
 .blurb {
   margin-top: calc(22 * var(--u));
+  margin-bottom: calc(6 * var(--u));
   width: calc(480 * var(--u));
+  max-width: min(calc(480 * var(--u)), 42vw);
   font-size: calc(15.2 * var(--u));
   line-height: calc(24 * var(--u));
   font-weight: 500;
@@ -689,10 +727,16 @@ h1 {
   animation: wipeDown 0.9s var(--e-soft) 0.9s both;
 }
 
+/* Hero + forecast are absolutely placed; top on .forecast keeps copy off the 7-day strip */
 .forecast {
   left: calc(126 * var(--u));
   right: calc(396 * var(--u));
-  bottom: calc(99 * var(--u));
+  top: calc(488 * var(--u));
+  bottom: calc(86 * var(--u));
+  display: flex;
+  flex-direction: column;
+  gap: calc(8 * var(--u));
+  min-height: 0;
 }
 
 .forecast-bar {
@@ -805,9 +849,12 @@ a.chip.hourly-link:hover {
 }
 
 .chart-wrap {
-  margin-top: calc(43 * var(--u));
+  flex: 1 1 auto;
+  margin-top: calc(22 * var(--u));
   width: 100%;
-  height: calc(230 * var(--u));
+  min-height: calc(112 * var(--u));
+  max-height: calc(218 * var(--u));
+  height: auto;
 }
 
 .chart {
@@ -1340,15 +1387,19 @@ button.logout {
   line-height: 1.5;
 }
 
-.login-form {
+.login-form,
+.auth-form {
   display: flex;
   flex-direction: column;
   gap: calc(12 * var(--u));
-  margin-top: calc(16 * var(--u));
+  margin-top: calc(20 * var(--u));
+  max-width: calc(400 * var(--u));
 }
 
-.login-label {
+.login-label,
+.auth-label {
   font-size: calc(13 * var(--u));
+  font-weight: 500;
   color: var(--ink-soft);
 }
 
@@ -1360,6 +1411,42 @@ button.logout {
   border: 1px solid var(--glass-line);
   background: var(--tool-fill);
   color: var(--ink);
+}
+
+.auth-input {
+  width: 100%;
+  padding: calc(12 * var(--u)) calc(16 * var(--u));
+  border-radius: calc(14 * var(--u));
+}
+
+.auth-input:focus-visible {
+  outline: calc(2 * var(--u)) solid var(--focus-ring);
+  outline-offset: calc(2 * var(--u));
+}
+
+.auth-submit {
+  font: inherit;
+  font-size: calc(14 * var(--u));
+  font-weight: 600;
+  margin-top: calc(4 * var(--u));
+  padding: calc(12 * var(--u)) calc(18 * var(--u));
+  border-radius: calc(14 * var(--u));
+  border: 1px solid var(--glass-line);
+  cursor: pointer;
+  background: var(--ink);
+  color: var(--stage-fallback);
+  box-shadow: 0 calc(8 * var(--u)) calc(24 * var(--u))
+    color-mix(in srgb, var(--page-bg) 35%, transparent);
+  transition: filter 0.2s var(--e-soft), transform 0.2s var(--e-soft);
+}
+
+.auth-submit:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.auth-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .login-submit {
@@ -1377,6 +1464,63 @@ button.logout {
 .login-submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.page-panel.auth-page {
+  max-width: calc(520 * var(--u));
+  padding: calc(28 * var(--u)) calc(32 * var(--u)) calc(30 * var(--u));
+}
+
+.auth-chip {
+  margin-bottom: calc(14 * var(--u));
+  animation: none;
+}
+
+.auth-page .page-title {
+  margin-bottom: calc(10 * var(--u));
+}
+
+.auth-lead {
+  max-width: calc(44ch);
+}
+
+.auth-feedback {
+  margin-top: calc(16 * var(--u));
+  font-size: calc(14 * var(--u));
+  line-height: 1.5;
+  padding: calc(12 * var(--u)) calc(14 * var(--u));
+  border-radius: calc(12 * var(--u));
+  border: 1px solid var(--glass-line);
+}
+
+.auth-feedback--ok {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--tool-fill) 55%, transparent);
+}
+
+.auth-feedback--err {
+  color: var(--ink);
+  background: color-mix(in srgb, #e85d5d 18%, var(--tool-fill));
+  border-color: color-mix(in srgb, #e85d5d 35%, var(--glass-line));
+}
+
+.auth-switch {
+  margin-top: calc(24 * var(--u));
+  padding-top: calc(20 * var(--u));
+  border-top: 1px solid var(--glass-line);
+  font-size: calc(14 * var(--u));
+  color: var(--ink-muted);
+}
+
+.auth-switch a {
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: calc(3 * var(--u));
+}
+
+.auth-switch a:hover {
+  filter: brightness(1.08);
 }
 
 .hourly-header .hourly-title {
@@ -2289,6 +2433,23 @@ button.logout {
 
 [data-theme="light"] .wfill {
   opacity: var(--chart-fill-opacity);
+}
+
+@media (max-height: 860px) {
+  .hero {
+    top: calc(118 * var(--u));
+  }
+  .forecast {
+    top: calc(468 * var(--u));
+  }
+  h1 {
+    font-size: calc(56 * var(--u));
+    line-height: calc(68 * var(--u));
+  }
+  .chart-wrap {
+    margin-top: calc(16 * var(--u));
+    max-height: calc(168 * var(--u));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

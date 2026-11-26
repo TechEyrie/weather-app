@@ -15,25 +15,6 @@ type FavoriteRow = {
   sort_order: number;
 };
 
-function samePlace(a: GeoLocation, b: GeoLocation): boolean {
-  return (
-    Math.abs(a.latitude - b.latitude) < 0.02 &&
-    Math.abs(a.longitude - b.longitude) < 0.02
-  );
-}
-
-function mergeFavorites(
-  local: GeoLocation[],
-  remote: GeoLocation[]
-): GeoLocation[] {
-  const out: GeoLocation[] = [...local];
-  for (const r of remote) {
-    if (out.some((l) => l.id === r.id || samePlace(l, r))) continue;
-    out.push(r);
-  }
-  return out;
-}
-
 function rowToLoc(row: FavoriteRow): GeoLocation {
   return {
     id: row.geocode_id,
@@ -118,8 +99,8 @@ export async function pushProfileSettings(
   if (error) throw error;
 }
 
-/** Guest local state → merge → persist local + remote. */
-export async function syncUserData(
+/** Signed-in hydrate: DB is source of truth; local guest data is merged in once. */
+export async function hydrateUserData(
   supabase: SupabaseClient,
   userId: string,
   localFavorites: GeoLocation[],
@@ -131,23 +112,34 @@ export async function syncUserData(
   activeLocation: GeoLocation;
 }> {
   const remoteFavorites = await pullFavorites(supabase, userId);
-  const merged = mergeFavorites(localFavorites, remoteFavorites);
-
   const remoteProfile = await pullProfileSettings(supabase, userId);
+
+  const favorites =
+    remoteFavorites.length > 0 ? remoteFavorites : localFavorites;
+
   const settings = remoteProfile?.auroraSettings ?? localSettings;
   const activeLocation = remoteProfile?.activeLocation ?? localActive;
 
-  writeFavorites(merged);
+  if (remoteFavorites.length === 0 && localFavorites.length > 0) {
+    await pushFavorites(supabase, userId, favorites);
+  }
+
+  const hadRemoteProfile = Boolean(
+    remoteProfile?.auroraSettings || remoteProfile?.activeLocation
+  );
+  if (!hadRemoteProfile) {
+    await pushProfileSettings(supabase, userId, {
+      auroraSettings: settings,
+      activeLocation,
+    });
+  }
+
+  writeFavorites(favorites);
   writeSettings(settings);
   saveActiveLocation(activeLocation);
 
-  await pushFavorites(supabase, userId, merged);
-  await pushProfileSettings(supabase, userId, {
-    auroraSettings: settings,
-    activeLocation,
-  });
-
-  return { favorites: merged, settings, activeLocation };
+  return { favorites, settings, activeLocation };
 }
 
-// ponytail: full replace on push; upgrade = per-row upsert if favorites grow
+/** @deprecated Use hydrateUserData */
+export const syncUserData = hydrateUserData;

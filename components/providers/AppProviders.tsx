@@ -14,10 +14,10 @@ import type { User } from "@supabase/supabase-js";
 import { DEFAULT_LOCATION, type GeoLocation } from "@/lib/open-meteo";
 import { readActiveLocation, saveActiveLocation } from "@/lib/location-storage";
 import {
-  addFavorite,
-  moveFavorite,
+  addFavoriteToList,
+  moveFavoriteInList,
   readFavorites,
-  removeFavorite,
+  removeFavoriteFromList,
   writeFavorites,
 } from "@/lib/favorites-storage";
 import {
@@ -27,10 +27,11 @@ import {
   type AuroraSettings,
 } from "@/lib/settings-storage";
 import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import {
+  hydrateUserData,
   pushFavorites,
   pushProfileSettings,
-  syncUserData,
 } from "@/lib/supabase/sync";
 
 type LocationContextValue = {
@@ -41,6 +42,8 @@ type LocationContextValue = {
   removeFavorite: (id: number) => void;
   moveFavorite: (id: number, direction: "up" | "down") => void;
   replaceFavorites: (list: GeoLocation[]) => void;
+  dataReady: boolean;
+  syncError: string | null;
 };
 
 type SettingsContextValue = {
@@ -75,89 +78,6 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth requires AppProviders");
   return ctx;
-}
-
-function LocationProvider({ children }: { children: ReactNode }) {
-  const [activeLocation, setActiveLocationState] =
-    useState<GeoLocation>(DEFAULT_LOCATION);
-  const [favorites, setFavorites] = useState<GeoLocation[]>([]);
-
-  useEffect(() => {
-    setActiveLocationState(readActiveLocation());
-    setFavorites(readFavorites());
-  }, []);
-
-  const setActiveLocation = useCallback((loc: GeoLocation) => {
-    setActiveLocationState(loc);
-    saveActiveLocation(loc);
-  }, []);
-
-  const handleAddFavorite = useCallback((loc: GeoLocation) => {
-    setFavorites(addFavorite(loc));
-  }, []);
-
-  const handleRemoveFavorite = useCallback((id: number) => {
-    setFavorites(removeFavorite(id));
-  }, []);
-
-  const handleMoveFavorite = useCallback(
-    (id: number, direction: "up" | "down") => {
-      setFavorites(moveFavorite(id, direction));
-    },
-    []
-  );
-
-  const replaceFavorites = useCallback((list: GeoLocation[]) => {
-    writeFavorites(list);
-    setFavorites(list);
-  }, []);
-
-  const value = useMemo(
-    () => ({
-      activeLocation,
-      setActiveLocation,
-      favorites,
-      addFavorite: handleAddFavorite,
-      removeFavorite: handleRemoveFavorite,
-      moveFavorite: handleMoveFavorite,
-      replaceFavorites,
-    }),
-    [
-      activeLocation,
-      setActiveLocation,
-      favorites,
-      handleAddFavorite,
-      handleRemoveFavorite,
-      handleMoveFavorite,
-      replaceFavorites,
-    ]
-  );
-
-  return (
-    <LocationContext.Provider value={value}>{children}</LocationContext.Provider>
-  );
-}
-
-function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettingsState] = useState<AuroraSettings>(DEFAULT_SETTINGS);
-
-  useEffect(() => {
-    setSettingsState(readSettings());
-  }, []);
-
-  const setSettings = useCallback((next: AuroraSettings) => {
-    setSettingsState(next);
-    writeSettings(next);
-  }, []);
-
-  const value = useMemo(
-    () => ({ settings, setSettings }),
-    [settings, setSettings]
-  );
-
-  return (
-    <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>
-  );
 }
 
 function AuthProvider({ children }: { children: ReactNode }) {
@@ -206,77 +126,213 @@ function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-function RemoteSyncEffects() {
+type UserDataBridgeProps = {
+  children: ReactNode;
+};
+
+/** Loads guest localStorage or signed-in Supabase; writes go to the active store. */
+function UserDataBridge({ children }: UserDataBridgeProps) {
   const { user } = useAuth();
-  const {
-    favorites,
-    activeLocation,
-    setActiveLocation,
-    replaceFavorites,
-  } = useLocation();
-  const { settings, setSettings } = useSettings();
-  const syncedUser = useRef<string | null>(null);
-  const pushTimer = useRef<number | null>(null);
+  const [activeLocation, setActiveLocationState] =
+    useState<GeoLocation>(DEFAULT_LOCATION);
+  const [favorites, setFavorites] = useState<GeoLocation[]>([]);
+  const [settings, setSettingsState] = useState<AuroraSettings>(DEFAULT_SETTINGS);
+  const [dataReady, setDataReady] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const hydrateGen = useRef(0);
+
+  const persistFavoritesRemote = useCallback(
+    async (list: GeoLocation[]) => {
+      if (!user?.id || !isSupabaseConfigured()) return;
+      const supabase = createClient();
+      if (!supabase) return;
+      await pushFavorites(supabase, user.id, list);
+      writeFavorites(list);
+    },
+    [user?.id]
+  );
+
+  const persistProfileRemote = useCallback(
+    async (patch: {
+      auroraSettings?: AuroraSettings;
+      activeLocation?: GeoLocation;
+    }) => {
+      if (!user?.id || !isSupabaseConfigured()) return;
+      const supabase = createClient();
+      if (!supabase) return;
+      await pushProfileSettings(supabase, user.id, patch);
+      if (patch.auroraSettings) writeSettings(patch.auroraSettings);
+      if (patch.activeLocation) saveActiveLocation(patch.activeLocation);
+    },
+    [user?.id]
+  );
 
   useEffect(() => {
-    if (!user?.id) {
-      syncedUser.current = null;
-      return;
+    const gen = ++hydrateGen.current;
+    setDataReady(false);
+    setSyncError(null);
+
+    async function run() {
+      if (!user?.id || !isSupabaseConfigured()) {
+        setActiveLocationState(readActiveLocation());
+        setFavorites(readFavorites());
+        setSettingsState(readSettings());
+        if (gen === hydrateGen.current) setDataReady(true);
+        return;
+      }
+
+      const supabase = createClient();
+      if (!supabase) {
+        if (gen === hydrateGen.current) setDataReady(true);
+        return;
+      }
+
+      try {
+        const merged = await hydrateUserData(
+          supabase,
+          user.id,
+          readFavorites(),
+          readSettings(),
+          readActiveLocation()
+        );
+        if (gen !== hydrateGen.current) return;
+        setFavorites(merged.favorites);
+        setSettingsState(merged.settings);
+        setActiveLocationState(merged.activeLocation);
+        setSyncError(null);
+      } catch {
+        if (gen !== hydrateGen.current) return;
+        setSyncError(
+          "Could not load your saved data from the cloud. Check Supabase connection and RLS."
+        );
+        setActiveLocationState(readActiveLocation());
+        setFavorites(readFavorites());
+        setSettingsState(readSettings());
+      } finally {
+        if (gen === hydrateGen.current) setDataReady(true);
+      }
     }
-    if (syncedUser.current === user.id) return;
 
-    const supabase = createClient();
-    if (!supabase) return;
+    void run();
+  }, [user?.id]);
 
-    void syncUserData(
-      supabase,
-      user.id,
-      readFavorites(),
-      readSettings(),
-      readActiveLocation()
-    ).then((merged) => {
-      replaceFavorites(merged.favorites);
-      setSettings(merged.settings);
-      setActiveLocation(merged.activeLocation);
-      syncedUser.current = user.id;
-    });
-  }, [user?.id, replaceFavorites, setSettings, setActiveLocation]);
+  const setActiveLocation = useCallback(
+    (loc: GeoLocation) => {
+      setActiveLocationState(loc);
+      if (user?.id) {
+        void persistProfileRemote({
+          activeLocation: loc,
+          auroraSettings: settings,
+        }).catch(() =>
+          setSyncError("Failed to save active location to your account.")
+        );
+      } else {
+        saveActiveLocation(loc);
+      }
+    },
+    [user?.id, settings, persistProfileRemote]
+  );
 
-  useEffect(() => {
-    if (!user?.id || syncedUser.current !== user.id) return;
-    const supabase = createClient();
-    if (!supabase) return;
+  const setSettings = useCallback(
+    (next: AuroraSettings) => {
+      setSettingsState(next);
+      if (user?.id) {
+        void persistProfileRemote({
+          auroraSettings: next,
+          activeLocation,
+        }).catch(() => setSyncError("Failed to save settings to your account."));
+      } else {
+        writeSettings(next);
+      }
+    },
+    [user?.id, activeLocation, persistProfileRemote]
+  );
 
-    if (pushTimer.current) window.clearTimeout(pushTimer.current);
-    pushTimer.current = window.setTimeout(() => {
-      void pushFavorites(supabase, user.id, favorites).catch(() => {
-        /* offline */
-      });
-      void pushProfileSettings(supabase, user.id, {
-        auroraSettings: settings,
-        activeLocation,
-      }).catch(() => {
-        /* offline */
-      });
-    }, 400);
+  const commitFavorites = useCallback(
+    (next: GeoLocation[]) => {
+      setFavorites(next);
+      if (user?.id) {
+        void persistFavoritesRemote(next).catch(() =>
+          setSyncError("Failed to save favorites to your account.")
+        );
+      } else {
+        writeFavorites(next);
+      }
+    },
+    [user?.id, persistFavoritesRemote]
+  );
 
-    return () => {
-      if (pushTimer.current) window.clearTimeout(pushTimer.current);
-    };
-  }, [user?.id, favorites, settings, activeLocation]);
+  const addFavorite = useCallback(
+    (loc: GeoLocation) => {
+      commitFavorites(addFavoriteToList(favorites, loc));
+    },
+    [favorites, commitFavorites]
+  );
 
-  return null;
+  const removeFavorite = useCallback(
+    (id: number) => {
+      commitFavorites(removeFavoriteFromList(favorites, id));
+    },
+    [favorites, commitFavorites]
+  );
+
+  const moveFavorite = useCallback(
+    (id: number, direction: "up" | "down") => {
+      commitFavorites(moveFavoriteInList(favorites, id, direction));
+    },
+    [favorites, commitFavorites]
+  );
+
+  const replaceFavorites = useCallback(
+    (list: GeoLocation[]) => {
+      commitFavorites(list);
+    },
+    [commitFavorites]
+  );
+
+  const locationValue = useMemo(
+    () => ({
+      activeLocation,
+      setActiveLocation,
+      favorites,
+      addFavorite,
+      removeFavorite,
+      moveFavorite,
+      replaceFavorites,
+      dataReady,
+      syncError,
+    }),
+    [
+      activeLocation,
+      setActiveLocation,
+      favorites,
+      addFavorite,
+      removeFavorite,
+      moveFavorite,
+      replaceFavorites,
+      dataReady,
+      syncError,
+    ]
+  );
+
+  const settingsValue = useMemo(
+    () => ({ settings, setSettings }),
+    [settings, setSettings]
+  );
+
+  return (
+    <SettingsContext.Provider value={settingsValue}>
+      <LocationContext.Provider value={locationValue}>
+        {children}
+      </LocationContext.Provider>
+    </SettingsContext.Provider>
+  );
 }
 
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
-      <SettingsProvider>
-        <LocationProvider>
-          <RemoteSyncEffects />
-          {children}
-        </LocationProvider>
-      </SettingsProvider>
+      <UserDataBridge>{children}</UserDataBridge>
     </AuthProvider>
   );
 }
