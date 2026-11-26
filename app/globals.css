@@ -291,13 +291,60 @@ button.tool {
   flex-direction: column;
   align-items: center;
   padding-top: calc(22 * var(--u));
-  padding-bottom: calc(52 * var(--u));
+  padding-bottom: calc(14 * var(--u));
+  overflow: hidden;
   border-radius: calc(26 * var(--u));
   border: 1px solid var(--glass-line);
   background: var(--sidebar-fill);
   backdrop-filter: blur(calc(18 * var(--u))) saturate(115%);
   -webkit-backdrop-filter: blur(calc(18 * var(--u))) saturate(115%);
   animation: slideL 0.92s var(--e-out) 0.05s both;
+}
+
+.sidebar-nav-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  margin-top: calc(18 * var(--u));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ink) 35%, transparent) transparent;
+  padding: 0 calc(6 * var(--u));
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 calc(10 * var(--u)),
+    #000 calc(100% - 12 * var(--u)),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 calc(10 * var(--u)),
+    #000 calc(100% - 12 * var(--u)),
+    transparent 100%
+  );
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar {
+  width: calc(4 * var(--u));
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-thumb {
+  border-radius: calc(4 * var(--u));
+  background: color-mix(in srgb, var(--ink) 30%, transparent);
+}
+
+.sidebar-foot {
+  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding-top: calc(10 * var(--u));
+  margin-top: calc(6 * var(--u));
+  border-top: 1px solid color-mix(in srgb, var(--glass-line) 75%, transparent);
 }
 
 .pip {
@@ -327,11 +374,12 @@ button.tool {
 }
 
 .nav {
-  margin-top: calc(57.5 * var(--u));
+  margin-top: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: calc(43 * var(--u));
+  gap: calc(26 * var(--u));
+  padding: calc(8 * var(--u)) 0 calc(10 * var(--u));
 }
 
 .nav a {
@@ -370,15 +418,22 @@ button.tool {
 }
 
 .logout {
-  margin-top: auto;
+  margin-top: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: calc(8 * var(--u));
-  font-size: calc(11 * var(--u));
+  gap: calc(6 * var(--u));
+  padding: calc(6 * var(--u)) 0 calc(4 * var(--u));
+  font-size: calc(10.5 * var(--u));
   font-weight: 500;
+  line-height: 1.2;
+  text-align: center;
   color: rgba(255, 255, 255, 0.78);
   animation: riseIn 0.7s var(--e-out) 0.7s both;
+}
+
+[data-theme="light"] .logout {
+  color: var(--ink-faint);
 }
 
 .logout svg {
@@ -668,6 +723,31 @@ button.tool {
   -webkit-backdrop-filter: blur(calc(16 * var(--u))) saturate(115%);
   overflow: hidden;
   animation: wipeRight 0.8s var(--e-out) 0.44s both;
+}
+
+button.chip {
+  border: 1px solid var(--glass-line);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background 0.2s var(--e-soft),
+    filter 0.2s var(--e-soft),
+    transform 0.15s var(--e-soft);
+}
+
+button.chip:hover {
+  background: var(--tool-fill-hover);
+  filter: brightness(1.06);
+}
+
+button.chip:active {
+  transform: scale(0.98);
+}
+
+button.chip:focus-visible {
+  outline: calc(2 * var(--u)) solid var(--focus-ring);
+  outline-offset: calc(2 * var(--u));
 }
 
 .chip::after,
@@ -1339,8 +1419,8 @@ html:has(.scroll-stage) body {
 
 button.logout {
   border: 0;
-  padding: 0;
-  margin-top: auto;
+  padding: calc(6 * var(--u)) 0 calc(4 * var(--u));
+  margin-top: 0;
   background: none;
   cursor: pointer;
   font: inherit;
@@ -2024,6 +2104,8 @@ button.logout {
 
 .add-loc-cancel {
   flex-shrink: 0;
+  min-width: calc(96 * var(--u));
+  justify-content: center;
 }
 
 @media (max-width: 860px) {
@@ -2773,8 +2855,15 @@ button.logout {
     animation: riseIn 0.7s var(--e-out) 0.05s both;
   }
   .logo,
-  .logout {
+  .sidebar-foot {
     display: none;
+  }
+  .sidebar-nav-scroll {
+    margin-top: 0;
+    overflow: visible;
+    mask-image: none;
+    -webkit-mask-image: none;
+    padding: 0;
   }
   .nav {
     flex-direction: row;
@@ -2782,6 +2871,7 @@ button.logout {
     gap: calc(22 * var(--u));
     width: 100%;
     justify-content: space-around;
+    padding: 0;
   }
   .nav a {
     animation: riseIn 0.55s var(--e-out) both;
